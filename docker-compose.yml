@@ -1,0 +1,46 @@
+version: "3.8"
+
+# ====================================================================================================================
+# POSTGRES SERVER
+# ====================================================================================================================
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres-7DenTech
+    environment:
+      POSTGRES_DB: SevenDb
+      POSTGRES_PASSWORD: 1234567
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - ./.data/postgresql/data:/var/lib/postgresql/data
+    networks:
+      - 7dentech-network
+
+  # ====================================================================================================================
+  # PGADMIN
+  # ====================================================================================================================
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin-7DenTech
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dener155@hotmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+
+    volumes:
+      - ./.data/pgadmin:/var/lib/pgadmin
+
+    networks:
+      - 7dentech-network
+
+# ======================================================================================================================
+# REDE
+# ======================================================================================================================
+networks:
+  7dentech-network:
+    driver: bridge
+
+    #permissão pasta data sudo chmod -R 777 .data, docker-compose up -d
