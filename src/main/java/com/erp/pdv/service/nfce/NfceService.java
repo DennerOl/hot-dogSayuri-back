@@ -68,10 +68,11 @@ public class NfceService {
     this.webClient = webClientBuilder.baseUrl(ApiConstants.API_URL).build(); // Base URL configurada
   }
 
-  public NfceResponseDTO processarNfce(NfceRequestDTO dto) {
+  public NfceResponseDTO processarNfce2(NfceRequestDTO dto) {
     log.info("Iniciando processamento da NFC-e número {}", dto.getNumeroSequencial());
 
     // Enviar a NFC-e para a API da Nuvem Fiscal
+    /* */
     NfceResponseDTO response = enviarNfceAPI(dto);
 
     // Se retorno foi bem-sucedido, loga e retorna
@@ -85,6 +86,21 @@ public class NfceService {
       log.info("Falha no envio da NFC-e.");
       throw new RuntimeException("Falha ao enviar NFC-e.");
     }
+  }
+
+  public NfceResponseDTO processarNfce(NfceRequestDTO dto) {
+    log.info("Iniciando processamento da NFC-e número {}", dto.getNumeroSequencial());
+
+    // Enviar a NFC-e para a API da Nuvem Fiscal
+    /* */
+    // NfceResponseDTO response = enviarNfceAPI(dto);
+
+    // Se retorno foi bem-sucedido, loga e retorna
+    log.info("NFC-e sendo salva, montando impressao ====>: {}", dto.getId());
+    insertNfce(dto, null);
+
+    return null;
+
   }
 
   @Transactional
@@ -135,7 +151,7 @@ public class NfceService {
   }
 
   @Transactional(readOnly = true)
-  public Page<NfceMinResponse> findAllNfce(String cnpj, String minDate, String maxDate, String cpf,
+  public Page<NfceMinResponse> findAllNfce(Long emitenteId, String minDate, String maxDate, Long destinatarioId,
       Pageable pageable) {
 
     String minDateParam = (minDate == null || minDate.isEmpty()) ? null
@@ -144,10 +160,8 @@ public class NfceService {
     String maxDateParam = (maxDate == null || maxDate.isEmpty()) ? null
         : LocalDate.parse(maxDate).atTime(LocalTime.MAX).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-    String cpfParam = (cpf == null || cpf.isEmpty()) ? null : cpf;
-    String cnpjParam = (cnpj == null || cnpj.isEmpty()) ? null : cnpj;
-
-    Page<NfceMinProjection> page = repository.findAllNfce(minDateParam, maxDateParam, cpfParam, cnpjParam, pageable);
+    Page<NfceMinProjection> page = repository.findAllNfce(minDateParam, maxDateParam, destinatarioId, emitenteId,
+        pageable);
 
     // AGRUPAMENTO POR NFC-e (itens)
     Map<Long, NfceMinResponse> map = new LinkedHashMap<>();

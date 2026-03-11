@@ -90,11 +90,11 @@ public class NfceController {
   public ResponseEntity<Page<NfceMinResponse>> findAllNfce(
       @RequestParam(name = "minDate", required = false, defaultValue = "") String minDate,
       @RequestParam(name = "maxDate", required = false, defaultValue = "") String maxDate,
-      @RequestParam(name = "cpf", required = false, defaultValue = "") String cpf,
-      @RequestParam(name = "cnpj", required = false, defaultValue = "") String cnpj,
+      @RequestParam(name = "destinatarioId", required = false) Long destinatarioId,
+      @RequestParam(name = "emitenteId", required = false) Long emitenteId,
       @PageableDefault(size = 10) Pageable pageable) {
 
-    Page<NfceMinResponse> list = nfceService.findAllNfce(cnpj, minDate, maxDate, cpf, pageable);
+    Page<NfceMinResponse> list = nfceService.findAllNfce(emitenteId, minDate, maxDate, destinatarioId, pageable);
     return ResponseEntity.ok(list);
   }
 

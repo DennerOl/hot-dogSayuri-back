@@ -57,7 +57,7 @@ public interface NfceRepository extends JpaRepository<Nfce, Long> {
             FROM tb_nfce n
             INNER JOIN tb_emitente e ON n.empresa_id = e.id
             LEFT JOIN tb_destinatario d ON n.destinatario_id = d.id
-            INNER JOIN tb_pagamento p ON n.pagamento_id = p.id
+            LEFT JOIN tb_pagamento p ON n.pagamento_id = p.id
             LEFT JOIN tb_item_nfce i ON i.nfce_id = n.id
 
             WHERE
@@ -67,10 +67,10 @@ public interface NfceRepository extends JpaRepository<Nfce, Long> {
                         AND n.data_hora_emissao BETWEEN CAST(:minDate AS timestamp) AND CAST(:maxDate AS timestamp)))
 
                 -- FILTRO DE cpf OPCIONAL
-                AND (:cpf IS NULL OR :cpf = '' OR d.cpf = :cpf)
+                AND (:destinatarioId IS NULL OR d.id = :destinatarioId)
 
                 -- FILTRO DE CNPJ OPCIONAL
-                AND (:cnpj IS NULL OR :cnpj = '' OR e.cnpj = :cnpj)
+                AND (:emitenteId IS NULL OR e.id = :emitenteId)
 
                 -- INCLUI ORÇAMENTOS COM data_hora_emissao NULL
                 AND (n.data_hora_emissao IS NOT NULL OR :minDate IS NULL OR :maxDate IS NULL)
@@ -84,20 +84,20 @@ public interface NfceRepository extends JpaRepository<Nfce, Long> {
             FROM tb_nfce n
             INNER JOIN tb_emitente e ON n.empresa_id = e.id
             LEFT JOIN tb_destinatario d ON n.destinatario_id = d.id
-            INNER JOIN tb_pagamento p ON n.pagamento_id = p.id
+            LEFT JOIN tb_pagamento p ON n.pagamento_id = p.id
             WHERE
                 (:minDate IS NULL OR :maxDate IS NULL
                     OR (n.data_hora_emissao IS NOT NULL
                         AND n.data_hora_emissao BETWEEN CAST(:minDate AS timestamp) AND CAST(:maxDate AS timestamp)))
-                AND (:cpf IS NULL OR :cpf = '' OR d.cpf = :cpf)
-                AND (:cnpj IS NULL OR :cnpj = '' OR e.cnpj = :cnpj)
+                AND (:destinatarioId IS NULL OR d.id = :destinatarioId)
+                AND (:emitenteId IS NULL OR e.id = :emitenteId)
                 AND (n.data_hora_emissao IS NOT NULL OR :minDate IS NULL OR :maxDate IS NULL)
             """, nativeQuery = true)
     Page<NfceMinProjection> findAllNfce(
             @Param("minDate") String minDate,
             @Param("maxDate") String maxDate,
-            @Param("cpf") String cpf,
-            @Param("cnpj") String cnpj,
+            @Param("destinatarioId") Long destinatarioId,
+            @Param("emitenteId") Long emitenteId,
             Pageable pageable);
 
 }
