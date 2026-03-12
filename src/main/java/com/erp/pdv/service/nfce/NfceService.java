@@ -11,7 +11,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -151,22 +153,28 @@ public class NfceService {
   }
 
   @Transactional(readOnly = true)
-  public Page<NfceMinResponse> findAllNfce(Long emitenteId, String minDate, String maxDate, Long destinatarioId,
-      Pageable pageable) {
+  public Page<NfceMinResponse> findAllNfce(Long emitenteId, String minDate, String maxDate,
+      Long destinatarioId, Pageable pageable) {
 
     String minDateParam = (minDate == null || minDate.isEmpty()) ? null
         : LocalDate.parse(minDate).atStartOfDay().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-
     String maxDateParam = (maxDate == null || maxDate.isEmpty()) ? null
         : LocalDate.parse(maxDate).atTime(LocalTime.MAX).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-    Page<NfceMinProjection> page = repository.findAllNfce(minDateParam, maxDateParam, destinatarioId, emitenteId,
-        pageable);
+    // 1. Busca só os IDs da página atual (paginação correta, sem JOIN de itens)
+    Page<Long> idPage = repository.findNfceIds(minDateParam, maxDateParam,
+        destinatarioId, emitenteId, pageable);
 
-    // AGRUPAMENTO POR NFC-e (itens)
+    if (idPage.isEmpty()) {
+      return Page.empty(pageable);
+    }
+
+    // 2. Busca os dados completos só dos IDs dessa página
+    List<NfceMinProjection> rows = repository.findNfceByIds(idPage.getContent());
+
+    // 3. Agrupa por NFC-e
     Map<Long, NfceMinResponse> map = new LinkedHashMap<>();
-
-    for (NfceMinProjection proj : page.getContent()) {
+    for (NfceMinProjection proj : rows) {
       Long id = proj.getId();
       NfceMinResponse dto = map.computeIfAbsent(id, k -> new NfceMinResponse(proj));
 
@@ -181,8 +189,13 @@ public class NfceService {
       }
     }
 
-    List<NfceMinResponse> dtos = new ArrayList<>(map.values());
-    return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    // 4. Mantém a ordem dos IDs da página
+    List<NfceMinResponse> lista = idPage.getContent().stream()
+        .map(id -> map.get(id))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
+
+    return new PageImpl<>(lista, pageable, idPage.getTotalElements());
   }
 
   public NfceResponseDTO enviarNfceAPI(NfceRequestDTO dto) {

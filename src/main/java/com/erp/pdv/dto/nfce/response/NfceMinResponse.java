@@ -62,6 +62,10 @@ public class NfceMinResponse {
     this.numero = projection.getNumeroNf();
     this.ambiente = projection.getAmbiente();
     this.motivo_status = projection.getMotivoStatus();
+    this.status = projection.getStatus();
+    this.valorTotalNota = projection.getValorTotalNota();
+    this.dataEmissao = projection.getDataHoraEmissao();
+
     if (projection.getDestinatarioId() != null) {
       DestinatarioDTO destinatario = new DestinatarioDTO();
       destinatario.setId(projection.getDestinatarioId());
@@ -69,7 +73,9 @@ public class NfceMinResponse {
       destinatario.setCpf(projection.getDestinatarioCpf());
       destinatario.setCnpj(projection.getDestinatarioCnpj());
       this.autor.add(destinatario);
+    }
 
+    if (projection.getEmitenteId() != null) {
       EmpresaDTO empresa = new EmpresaDTO();
       empresa.setId(projection.getEmitenteId());
       empresa.setX_nome(projection.getEmitenteNome());
@@ -77,26 +83,12 @@ public class NfceMinResponse {
       this.emitente.add(empresa);
     }
 
-    this.status = projection.getStatus();
-    this.valorTotalNota = projection.getValorTotalNota();
-    this.dataEmissao = projection.getDataHoraEmissao();
-    if (projection.getItemCodigoPrincipal() != null) {
-      ItemNfceDTO item = new ItemNfceDTO();
-      item.setProductId(projection.getProductId());
-      item.setCodigo_principal(projection.getItemCodigoPrincipal());
-      item.setDescricao(projection.getItemDescricao());
-      item.setQuantidade(projection.getItemQCom());
-      item.setPrecoUnitario(projection.getItemPrecoVenda());
-      this.itens.add(item);
-    }
-
-    // ------ PAGAMENTO ------
     if (projection.getPagamentoTipo() != null) {
       PagamentoDTO pg = new PagamentoDTO();
       pg.setId(projection.getPagId());
-
       pg.setT_pag(projection.getPagamentoTipo());
       this.pagamentos.add(pg);
     }
+
   }
 }

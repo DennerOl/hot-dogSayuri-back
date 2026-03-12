@@ -92,7 +92,7 @@ public class NfceController {
       @RequestParam(name = "maxDate", required = false, defaultValue = "") String maxDate,
       @RequestParam(name = "destinatarioId", required = false) Long destinatarioId,
       @RequestParam(name = "emitenteId", required = false) Long emitenteId,
-      @PageableDefault(size = 10) Pageable pageable) {
+      @PageableDefault(size = 20) Pageable pageable) {
 
     Page<NfceMinResponse> list = nfceService.findAllNfce(emitenteId, minDate, maxDate, destinatarioId, pageable);
     return ResponseEntity.ok(list);

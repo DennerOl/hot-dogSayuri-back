@@ -48,6 +48,8 @@ public interface NfceMinProjection {
 
   String getPagamentoTipo();
 
+  Double getDesconto();
+
   // Emitente
   Long getEmitenteId();
 
