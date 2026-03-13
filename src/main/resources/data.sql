@@ -230,3 +230,6 @@ INSERT INTO tb_destinatario
 VALUES
 ('45678912300', NULL, 'Carlos Pereira', 'Rua das Palmeiras', '789', 'Boa Vista', 5300108, 'PE', '50030000', 9, TRUE, 'carlos.pereira@email.com');
 
+
+
+-- Gerando 20 notas de teste (Simulando vendas de Hot Dog e Bebidas)

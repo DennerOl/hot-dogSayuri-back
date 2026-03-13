@@ -4,9 +4,10 @@ import java.net.URI;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,7 +20,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.erp.pdv.dto.nfce.NfceRequestDTO;
 import com.erp.pdv.dto.nfce.NfceSerieDTO;
-import com.erp.pdv.dto.nfce.response.NfceMinResponse;
+import com.erp.pdv.dto.nfce.response.NfcePageResponse;
 import com.erp.pdv.dto.nfce.response.NfceResponseDTO;
 import com.erp.pdv.service.nfce.NfceLoteService;
 import com.erp.pdv.service.nfce.NfceSerieEmpresa1Service;
@@ -87,15 +88,30 @@ public class NfceController {
   }
 
   @GetMapping("/notas")
-  public ResponseEntity<Page<NfceMinResponse>> findAllNfce(
+  public ResponseEntity<NfcePageResponse> findAllNfce(
       @RequestParam(name = "minDate", required = false, defaultValue = "") String minDate,
       @RequestParam(name = "maxDate", required = false, defaultValue = "") String maxDate,
       @RequestParam(name = "destinatarioId", required = false) Long destinatarioId,
       @RequestParam(name = "emitenteId", required = false) Long emitenteId,
       @PageableDefault(size = 20) Pageable pageable) {
 
-    Page<NfceMinResponse> list = nfceService.findAllNfce(emitenteId, minDate, maxDate, destinatarioId, pageable);
-    return ResponseEntity.ok(list);
+    NfcePageResponse response = nfceService.findAllNfce(emitenteId, minDate, maxDate, destinatarioId, pageable);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @GetMapping("/exportar-excel")
+  public ResponseEntity<byte[]> exportarExcel(
+      @RequestParam(name = "minDate") String minDate,
+      @RequestParam(name = "maxDate") String maxDate,
+      @RequestParam(name = "empresaId", required = false) Long empresaId) {
+
+    byte[] excelBytes = nfceService.gerarRelatorioExcel(minDate, maxDate, empresaId);
+
+    return ResponseEntity.ok()
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=nfce_relatorio.xlsx")
+        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+        .body(excelBytes);
   }
 
   // --- Empresa 1 ---

@@ -183,32 +183,24 @@ public interface NfceRepository extends JpaRepository<Nfce, Long> {
 
     // Query 1 — só IDs, paginável corretamente
     @Query(value = """
-            SELECT DISTINCT n.id
+            SELECT
+                n.id,
+                SUM(n.valor_total_nota) OVER() AS total_periodo
             FROM tb_nfce n
-            INNER JOIN tb_emitente e ON n.empresa_id = e.id
-            LEFT JOIN tb_destinatario d ON n.destinatario_id = d.id
-            WHERE
-                (:minDate IS NULL OR :maxDate IS NULL
-                    OR (n.data_hora_emissao IS NOT NULL
-                        AND n.data_hora_emissao BETWEEN CAST(:minDate AS timestamp) AND CAST(:maxDate AS timestamp)))
-                AND (:destinatarioId IS NULL OR d.id = :destinatarioId)
-                AND (:emitenteId IS NULL OR e.id = :emitenteId)
-                AND (n.data_hora_emissao IS NOT NULL OR :minDate IS NULL OR :maxDate IS NULL)
-            ORDER BY n.id DESC
+            WHERE (:emitenteId IS NULL OR n.empresa_id = :emitenteId)
+            AND (:destinatarioId IS NULL OR n.destinatario_id = :destinatarioId)
+            AND (:minDate IS NULL OR n.data_hora_emissao >= :minDate)
+            AND (:maxDate IS NULL OR n.data_hora_emissao <= :maxDate)
+            ORDER BY n.data_hora_emissao DESC
             """, countQuery = """
-            SELECT COUNT(DISTINCT n.id)
+            SELECT COUNT(n.id)
             FROM tb_nfce n
-            INNER JOIN tb_emitente e ON n.empresa_id = e.id
-            LEFT JOIN tb_destinatario d ON n.destinatario_id = d.id
-            WHERE
-                (:minDate IS NULL OR :maxDate IS NULL
-                    OR (n.data_hora_emissao IS NOT NULL
-                        AND n.data_hora_emissao BETWEEN CAST(:minDate AS timestamp) AND CAST(:maxDate AS timestamp)))
-                AND (:destinatarioId IS NULL OR d.id = :destinatarioId)
-                AND (:emitenteId IS NULL OR e.id = :emitenteId)
-                AND (n.data_hora_emissao IS NOT NULL OR :minDate IS NULL OR :maxDate IS NULL)
+            WHERE (:emitenteId IS NULL OR n.empresa_id = :emitenteId)
+            AND (:destinatarioId IS NULL OR n.destinatario_id = :destinatarioId)
+            AND (:minDate IS NULL OR n.data_hora_emissao >= :minDate)
+            AND (:maxDate IS NULL OR n.data_hora_emissao <= :maxDate)
             """, nativeQuery = true)
-    Page<Long> findNfceIds(
+    Page<Object[]> findNfceIdsComTotal(
             @Param("minDate") String minDate,
             @Param("maxDate") String maxDate,
             @Param("destinatarioId") Long destinatarioId,

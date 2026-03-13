@@ -1,5 +1,7 @@
 package com.erp.pdv.service.nfce;
 
+import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -15,10 +17,13 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -30,6 +35,7 @@ import com.erp.pdv.dto.PagamentoDTO;
 import com.erp.pdv.dto.nfce.ItemNfceDTO;
 import com.erp.pdv.dto.nfce.NfceRequestDTO;
 import com.erp.pdv.dto.nfce.response.NfceMinResponse;
+import com.erp.pdv.dto.nfce.response.NfcePageResponse;
 import com.erp.pdv.dto.nfce.response.NfceResponseDTO;
 import com.erp.pdv.dto.produto.ProductMinDTO;
 import com.erp.pdv.model.nfce.Nfce;
@@ -153,49 +159,174 @@ public class NfceService {
   }
 
   @Transactional(readOnly = true)
-  public Page<NfceMinResponse> findAllNfce(Long emitenteId, String minDate, String maxDate,
+  public NfcePageResponse findAllNfce(Long emitenteId, String minDate, String maxDate,
       Long destinatarioId, Pageable pageable) {
 
     String minDateParam = (minDate == null || minDate.isEmpty()) ? null
-        : LocalDate.parse(minDate).atStartOfDay().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-    String maxDateParam = (maxDate == null || maxDate.isEmpty()) ? null
-        : LocalDate.parse(maxDate).atTime(LocalTime.MAX).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        : LocalDate.parse(minDate).atStartOfDay()
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-    // 1. Busca só os IDs da página atual (paginação correta, sem JOIN de itens)
-    Page<Long> idPage = repository.findNfceIds(minDateParam, maxDateParam,
-        destinatarioId, emitenteId, pageable);
+    String maxDateParam = (maxDate == null || maxDate.isEmpty()) ? null
+        : LocalDate.parse(maxDate).atTime(LocalTime.MAX)
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+    Page<Object[]> idPage = repository.findNfceIdsComTotal(
+        minDateParam, maxDateParam, destinatarioId, emitenteId, pageable);
 
     if (idPage.isEmpty()) {
-      return Page.empty(pageable);
+      return new NfcePageResponse(
+          List.of(),
+          0,
+          0,
+          pageable.getPageNumber(),
+          pageable.getPageSize(),
+          true,
+          true,
+          0.0);
     }
 
-    // 2. Busca os dados completos só dos IDs dessa página
-    List<NfceMinProjection> rows = repository.findNfceByIds(idPage.getContent());
+    List<Long> ids = idPage.getContent().stream()
+        .map(r -> ((Number) r[0]).longValue())
+        .toList();
 
-    // 3. Agrupa por NFC-e
+    Double totalValorPeriodo = idPage.getContent().stream()
+        .map(r -> ((BigDecimal) r[1]).doubleValue())
+        .findFirst()
+        .orElse(0.0);
+
+    List<NfceMinProjection> rows = repository.findNfceByIds(ids);
+
     Map<Long, NfceMinResponse> map = new LinkedHashMap<>();
+
     for (NfceMinProjection proj : rows) {
+
       Long id = proj.getId();
       NfceMinResponse dto = map.computeIfAbsent(id, k -> new NfceMinResponse(proj));
 
       if (proj.getItemCodigoPrincipal() != null) {
+
         ItemNfceDTO item = new ItemNfceDTO();
         item.setProductId(proj.getProductId());
         item.setCodigo_principal(proj.getItemCodigoPrincipal());
         item.setDescricao(proj.getItemDescricao());
         item.setQuantidade(proj.getItemQCom());
         item.setPrecoUnitario(proj.getItemPrecoVenda());
+
         dto.getItens().add(item);
       }
     }
 
-    // 4. Mantém a ordem dos IDs da página
-    List<NfceMinResponse> lista = idPage.getContent().stream()
-        .map(id -> map.get(id))
+    List<NfceMinResponse> lista = ids.stream()
+        .map(map::get)
         .filter(Objects::nonNull)
         .collect(Collectors.toList());
 
-    return new PageImpl<>(lista, pageable, idPage.getTotalElements());
+    return new NfcePageResponse(
+        lista,
+        idPage.getTotalPages(),
+        idPage.getTotalElements(),
+        idPage.getNumber(),
+        idPage.getSize(),
+        idPage.isFirst(),
+        idPage.isLast(),
+        totalValorPeriodo);
+  }
+
+  public byte[] gerarRelatorioExcel(String minDate, String maxDate, Long empresaId) {
+
+    String minDateParam = (minDate == null || minDate.isEmpty()) ? null
+        : LocalDate.parse(minDate).atStartOfDay()
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+    String maxDateParam = (maxDate == null || maxDate.isEmpty()) ? null
+        : LocalDate.parse(maxDate).atTime(LocalTime.MAX)
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+    Pageable pageable = Pageable.unpaged();
+
+    Page<Object[]> idPage = repository.findNfceIdsComTotal(
+        minDateParam, maxDateParam, null, empresaId, pageable);
+
+    List<Long> ids = idPage.getContent().stream()
+        .map(r -> ((Number) r[0]).longValue())
+        .toList();
+
+    Double totalPeriodo = idPage.getContent().stream()
+        .map(r -> ((BigDecimal) r[1]).doubleValue())
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElse(0.0);
+
+    List<NfceMinProjection> rows = repository.findNfceByIds(ids);
+
+    Map<Long, NfceMinResponse> map = new LinkedHashMap<>();
+
+    for (NfceMinProjection proj : rows) {
+      map.computeIfAbsent(proj.getId(), k -> new NfceMinResponse(proj));
+    }
+
+    List<NfceMinResponse> lista = new ArrayList<>(map.values());
+
+    try (Workbook workbook = new XSSFWorkbook();
+        ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+      Sheet sheet = workbook.createSheet("Relatório NFC-e");
+
+      Row header = sheet.createRow(0);
+
+      String[] columns = {
+          "Empresa ID",
+          "Número",
+          "Data Emissão",
+          "Valor Total",
+          "Status",
+          "Chave de Acesso"
+      };
+
+      for (int i = 0; i < columns.length; i++) {
+        header.createCell(i).setCellValue(columns[i]);
+      }
+
+      int rowIdx = 1;
+
+      for (NfceMinResponse item : lista) {
+
+        Row row = sheet.createRow(rowIdx++);
+
+        if (item.getEmitente() != null && !item.getEmitente().isEmpty()) {
+          row.createCell(0).setCellValue(item.getEmitente().get(0).getId());
+        }
+
+        row.createCell(1).setCellValue(
+            item.getNumero() != null ? String.valueOf(item.getNumero()) : "");
+
+        row.createCell(2).setCellValue(
+            item.getDataEmissao().format(
+                DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")));
+
+        row.createCell(3).setCellValue(item.getValorTotalNota());
+
+        row.createCell(4).setCellValue(item.getStatus());
+
+        row.createCell(5).setCellValue(item.getChave());
+      }
+
+      // linha do total
+      Row totalRow = sheet.createRow(rowIdx + 1);
+      totalRow.createCell(2).setCellValue("TOTAL PERÍODO");
+      totalRow.createCell(3).setCellValue(totalPeriodo);
+
+      for (int i = 0; i < columns.length; i++) {
+        sheet.autoSizeColumn(i);
+      }
+
+      workbook.write(out);
+      return out.toByteArray();
+
+    } catch (Exception e) {
+      log.error("Erro ao gerar Excel NFC-e", e);
+      throw new RuntimeException("Erro ao gerar relatório Excel");
+    }
   }
 
   public NfceResponseDTO enviarNfceAPI(NfceRequestDTO dto) {
@@ -461,14 +592,15 @@ public class NfceService {
 
       // ===================== ICMS =====================
       if ("102".equals(cst)) {
-        // Simples Nacional - CSOSN 102 (sem crédito de ICMS)
+        // Simples Nacional - CSOSN 102 (sem crédito de ICMS) 00 pago no das
         Map<String, Object> icmssn102 = new HashMap<>();
         icmssn102.put("orig", origem);
         icmssn102.put("CSOSN", "102");
         icms.put("ICMSSN102", icmssn102);
 
       } else if ("500".equals(cst)) {
-        // Simples Nacional - CSOSN 500 (Substituição Tributária)
+        // Simples Nacional - CSOSN 500 (Substituição Tributária) cobrado anteriomente
+        // 060
         Map<String, Object> icmssn500 = new HashMap<>();
         icmssn500.put("orig", origem);
         icmssn500.put("CSOSN", "500");
